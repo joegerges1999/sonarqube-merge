@@ -58,7 +58,7 @@ rm -rf /mnt/nfs/$PG_PATH/migration-scripts
 
 echo "Restarting the service ..."
 rancher app upgrade --values /data/$team/$app/migration/myvals.yaml --set replicaCount='0' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
-sleep 3s
+sleep 7s
 rancher app upgrade --values /data/$team/$app/migration/myvals.yaml --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
 
 echo "Rechecking readiness ..."
