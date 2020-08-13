@@ -6,6 +6,11 @@ hostname=$4
 cluster_id=c-jpxcn
 project_id=p-zwxgj
 
+if [[ -z $app || -z $team || -z $version || -z $hostname ]]; then
+  echo 'One or more variables are undefined, exiting script ...'
+  exit 1
+fi
+
 echo "Logging in to rancher ..."
 rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $cluster_id:$project_id
 
@@ -30,10 +35,13 @@ LOGS_PATH=$(kubectl get --all-namespaces pv $LOGS_PV -o jsonpath="{.spec.nfs.pat
 PG_PATH=$(kubectl get --all-namespaces pv $PG_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
 PG_DATA_PATH=$(kubectl get --all-namespaces pv $PG_DATA_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
 
-echo "$DATA_PATH"
-
 echo "Getting pod name ..."
 POD=$(kubectl get pod --all-namespaces -l app=$app,team=$team -o jsonpath="{.items[0].metadata.name}")
+
+if [[ -z $CONF_PATH || -z $DATA_PATH || -z $EXTENSIONS_PATH || -z $LOGS_PATH || -z $PG_PATH || -z $PG_DATA_PATH ]]; then
+  echo 'One or more nfs paths are unset, exiting script ...'
+  exit 1
+fi
 
 echo "Copying sonarqube files to nfs ..."
 unzip /data/$team/$app/documents/$app-$version.zip -d /data/$team/$app/documents/
@@ -44,8 +52,16 @@ cp -r /data/$team/$app/documents/$app-$version/extensions/* /mnt/nfs/$EXTENSIONS
 cp -r /data/$team/$app/documents/$app-$version/logs/* /mnt/nfs/$LOGS_PATH/
 
 echo "Copying migration scripts and database dump to nfs ..."
-mkdir /mnt/nfs/$PG_PATH/migration-scripts
-mkdir /mnt/nfs/$PG_PATH/backups
+if [ ! -d "/mnt/nfs/$PG_PATH/migration-scripts" ]; then
+    echo "migration-scripts directory does not exist, creating directory ..."
+    mkdir /mnt/nfs/$PG_PATH/migration-scripts
+fi
+
+if [ ! -d "/mnt/nfs/$PG_PATH/migration-scripts" ]; then
+    echo "backups directory does not exist, creating directory ..."
+    mkdir /mnt/nfs/$PG_PATH/backups
+fi
+
 cp -r /data/$team/$app/migration/db-migration/* /mnt/nfs/$PG_PATH/migration-scripts/
 cp -r /data/$team/$app/documents/db_dump.sql /mnt/nfs/$PG_PATH/backups/
 chmod +x /mnt/nfs/$PG_PATH/migration-scripts/script.sh
