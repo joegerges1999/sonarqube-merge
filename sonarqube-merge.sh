@@ -10,7 +10,7 @@ echo "Logging in to rancher ..."
 rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $cluster_id:$project_id
 
 echo "Creating new SonarQube instance"
-rancher app install --values /data/$team/$app/migration/myvals.yaml--set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  --version 0.1.0 --namespace $app $app $team-$app
+rancher app install --values /data/$team/$app/migration/myvals.yaml --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  --version 0.1.0 --namespace $app $app $team-$app
 
 ansible-playbook /data/$team/$app/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$hostname"
 
