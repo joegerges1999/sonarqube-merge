@@ -10,7 +10,7 @@ echo "Logging in to rancher ..."
 rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $cluster_id:$project_id
 
 echo "Creating new SonarQube instance"
-rancher app install --values /data/$team/$app/migration/myvals.yaml --set replicaCount='1' --set ingress.enabled='true' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  --version 0.1.0 --namespace $app $app $team-$app
+rancher app install --values /data/$team/$app/migration/myvals.yaml--set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  --version 0.1.0 --namespace $app $app $team-$app
 
 ansible-playbook /data/$team/$app/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$hostname"
 
@@ -29,6 +29,8 @@ EXTENSIONS_PATH=$(kubectl get --all-namespaces pv $EXTENSIONS_PV -o jsonpath="{.
 LOGS_PATH=$(kubectl get --all-namespaces pv $LOGS_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
 PG_PATH=$(kubectl get --all-namespaces pv $PG_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
 PG_DATA_PATH=$(kubectl get --all-namespaces pv $PG_DATA_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+
+echo "$DATA_PATH"
 
 echo "Getting pod name ..."
 POD=$(kubectl get pod --all-namespaces -l app=$app,team=$team -o jsonpath="{.items[0].metadata.name}")
@@ -53,7 +55,9 @@ kubectl -n sonarqube exec $POD -c sonardb -- bash -c "cd /var/lib/postgresql/mig
 echo "Cleaning up volume from migration scripts ..."
 rm -rf /mnt/nfs/$PG_PATH/migration-scripts
 
-echo "Bringing service up ..."
+echo "Restarting the service ..."
+rancher app upgrade --set replicaCount='0' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
+sleep 3s
 rancher app upgrade --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
 
 echo "Rechecking readiness ..."
