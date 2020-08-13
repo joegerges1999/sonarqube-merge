@@ -1,104 +1,62 @@
-replicaCount: 1
+#!/bin/sh
+app=$1
+team=$2
+version=$3
+hostname=$4
+cluster_id=c-jpxcn
+project_id=p-zwxgj
 
-team: jgerges
+echo "Logging in to rancher ..."
+rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $cluster_id:$project_id
 
-hostname: "istestkubmaster1.fr.murex.com"
+echo "Creating new SonarQube instance"
+rancher app install --values /data/$team/$app/migration/myvals.yaml --set replicaCount='1' --set ingress.enabled='false' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  --version 0.1.0 --namespace $app $app $team-$app
 
-imagePullPolicy: Always
+ansible-playbook /data/$team/$app/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$hostname"
 
-imagePullSecrets: "docker-all"
+echo "Getting $app PV names for team $team..."
+CONF_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=conf -o jsonpath="{.items[0].spec.volumeName}")
+DATA_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=data -o jsonpath="{.items[0].spec.volumeName}")
+EXTENSIONS_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=extensions -o jsonpath="{.items[0].spec.volumeName}")
+LOGS_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=logs -o jsonpath="{.items[0].spec.volumeName}")
+PG_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=pg -o jsonpath="{.items[0].spec.volumeName}")
+PG_DATA_PV=$(kubectl get --all-namespaces pvc -l app=$app,team=$team,type=pg-data -o jsonpath="{.items[0].spec.volumeName}")
 
-dockerRegistry: "docker-all.nexus.murex.com/"
+echo "Finding path on nfs ..."
+CONF_PATH=$(kubectl get --all-namespaces pv $CONF_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+DATA_PATH=$(kubectl get --all-namespaces pv $DATA_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+EXTENSIONS_PATH=$(kubectl get --all-namespaces pv $EXTENSIONS_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+LOGS_PATH=$(kubectl get --all-namespaces pv $LOGS_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+PG_PATH=$(kubectl get --all-namespaces pv $PG_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
+PG_DATA_PATH=$(kubectl get --all-namespaces pv $PG_DATA_PV -o jsonpath="{.spec.nfs.path}" | rev | cut -d "/" -f1 | rev)
 
-cappedRequests:
-  enabled: false
-  requests:
-    cpu: 2000m
-    memory: 4096Mi
-  limits:
-    cpu: 2000m
-    memory: 4096Mi
+echo "Getting pod name ..."
+POD=$(kubectl get pod --all-namespaces -l app=$app,team=$team -o jsonpath="{.items[0].metadata.name}")
 
-sonarqube:
-  proxy:
-    enabled: false
-  http:
-    proxyHost: ""
-    proxyPort: ""
-  https:
-    proxyHost: ""
-    proxyPort: ""
-  image:
-    name: "sonarqube"
-    tag: "7.9.3-community"
-  port: 9000
-  webcontext: "sonar"
+echo "Copying sonarqube files to nfs ..."
+unzip /data/$team/$app/documents/$app-$version.zip
+\cp -r /data/$team/$app/documents/$app-$version/data/* /mnt/nfs/$DATA_PATH/
+\cp -r /data/$team/$app/documents/$app-$version/conf/* /mnt/nfs/$CONF_PATH/
+\cp -r /data/$team/$app/documents/$app-$version/extensions/* /mnt/nfs/$EXTENSIONS_PATH/
+\cp -r /data/$team/$app/documents/$app-$version/logs/* /mnt/nfs/$LOGS_PATH/
+\cp -r /data/$team/$app/documents/$app-$version/db_dump.sql /mnt/nfs/$PG_PATH/backups/
 
-db:
-  image:
-    name: postgres
-    tag: latest
-  port: 5432
-  name: sonar
-  credentials:
-    secret: "pg-credentials"
-    usernameKey: "username"
-    passwordKey: "password"
+echo "Copying migration scripts and database dump to nfs ..."
+mkdir /mnt/nfs/$PG_PATH/migration-scripts
+mkdir /mnt/nfs/$PG_PATH/backups
+\cp -r /data/$team/$app/migration/db-migration/* /mnt/nfs/$PG_PATH/migration-scripts/
+chmod +x /mnt/nfs/$PG_PATH/migration-scripts/script.sh
 
-env:
-#  - name: env-name-1
-#    value: env-value-1
-#  - name: env-name-2
-#    value: env-value-2
+echo "Running migration scripts to restore database ..."
+kubectl -n sonarqube exec $POD -c sonardb -- bash -c "cd /var/lib/postgresql/migration-scripts && ./script.sh"
 
-disablePlugins: true
+echo "Cleaning up volume from migration scripts ..."
+rm -rf /mnt/nfs/$PG_PATH/migration-scripts
 
-regex:
-  - version: "8.3.*|8.4.*"
-    pattern: .*/sonar-\(auth-github\|auth-gitlab\|ldap\|auth-saml\|cnes\|ha\|branch\|developer\|license\|python\).*jar
-  - version: "8.1.*|8.2.*"
-    pattern: .*/sonar-\(auth-github\|auth-gitlab\|ldap\|auth-saml\|ha\|branch\|developer\|license\|python\).*jar
-  - version: "7.9.*"
-    pattern: .*/sonar-\(ha\|branch\|developer\|license\|python\).*jar
+echo "Bringing service up ..."
+rancher app upgrade --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
 
-pvc:
-  enabled: true
-  sqDataName: data
-  sqLogsName: logs
-  sqConfName: conf
-  sqExtensionsName: extensions
-  pgName: current
-  pgDataName: data
+echo "Rechecking readiness ..."
+ansible-playbook /data/$team/$app/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$hostname"
 
-persistance:
-  enabled: true
-  accessMode: ReadWriteMany
-  dbStorage: 5Gi
-  dbDataStorage: 5Gi
-  sqDataStorage: 5Gi
-  sqConfStorage: 5Gi
-  sqExtensionsStorage: 20Gi
-  sqLogsStorage: 5Gi
-
-ingress:
-  enabled: true
-
-service:
-  enabled: true
-  port: 9000
-  type: LoadBalancer
-
-deployment:
-  enabled: true
-
-probes:
-  enabled: true
-  livenessProbe:
-    initialDelaySeconds: 60
-    periodsSeconds: 30
-  readinessProbe:
-    initialDelaySeconds: 60
-    periodSeconds: 30
-    failureThreshold: 6
-    
-  
+echo "SonarQube successfully merged, you can now access it on http://$hostname/sonar !"
