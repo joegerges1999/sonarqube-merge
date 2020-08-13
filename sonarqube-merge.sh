@@ -37,7 +37,7 @@ POD=$(kubectl get pod --all-namespaces -l app=$app,team=$team -o jsonpath="{.ite
 
 echo "Copying sonarqube files to nfs ..."
 unzip /data/$team/$app/documents/$app-$version.zip -d /data/$team/$app/documents/
-rm -rf /mnt/nfs/$DATA_PATH/ /mnt/nfs/$CONF_PATH/ /mnt/nfs/$EXTENSIONS_PATH/ /mnt/nfs/$LOGS_PATH/
+rm -rf /mnt/nfs/$DATA_PATH/* /mnt/nfs/$CONF_PATH/* /mnt/nfs/$EXTENSIONS_PATH/* /mnt/nfs/$LOGS_PATH/*
 cp -r /data/$team/$app/documents/$app-$version/data/* /mnt/nfs/$DATA_PATH/
 cp -r /data/$team/$app/documents/$app-$version/conf/* /mnt/nfs/$CONF_PATH/
 cp -r /data/$team/$app/documents/$app-$version/extensions/* /mnt/nfs/$EXTENSIONS_PATH/
@@ -57,9 +57,9 @@ echo "Cleaning up volume from migration scripts ..."
 rm -rf /mnt/nfs/$PG_PATH/migration-scripts
 
 echo "Restarting the service ..."
-rancher app upgrade --set replicaCount='0' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
+rancher app upgrade --values /data/$team/$app/migration/myvals.yaml --set replicaCount='0' --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
 sleep 3s
-rancher app upgrade --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
+rancher app upgrade --values /data/$team/$app/migration/myvals.yaml --set hostname="$hostname" --set team="$team" --set sonarqube.image.tag="$version-community"  $team-$app 0.1.0
 
 echo "Rechecking readiness ..."
 ansible-playbook /data/$team/$app/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$hostname"
