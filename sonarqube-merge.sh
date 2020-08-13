@@ -57,7 +57,7 @@ if [ ! -d "/mnt/nfs/$PG_PATH/migration-scripts" ]; then
     mkdir /mnt/nfs/$PG_PATH/migration-scripts
 fi
 
-if [ ! -d "/mnt/nfs/$PG_PATH/migration-scripts" ]; then
+if [ ! -d "/mnt/nfs/$PG_PATH/backups" ]; then
     echo "backups directory does not exist, creating directory ..."
     mkdir /mnt/nfs/$PG_PATH/backups
 fi
