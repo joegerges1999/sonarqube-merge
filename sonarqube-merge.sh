@@ -37,16 +37,17 @@ POD=$(kubectl get pod --all-namespaces -l app=$app,team=$team -o jsonpath="{.ite
 
 echo "Copying sonarqube files to nfs ..."
 unzip /data/$team/$app/documents/$app-$version.zip -d /data/$team/$app/documents/
-\cp -r /data/$team/$app/documents/$app-$version/data/* /mnt/nfs/$DATA_PATH/
-\cp -r /data/$team/$app/documents/$app-$version/conf/* /mnt/nfs/$CONF_PATH/
-\cp -r /data/$team/$app/documents/$app-$version/extensions/* /mnt/nfs/$EXTENSIONS_PATH/
-\cp -r /data/$team/$app/documents/$app-$version/logs/* /mnt/nfs/$LOGS_PATH/
+rm -rf /mnt/nfs/$DATA_PATH/ /mnt/nfs/$CONF_PATH/ /mnt/nfs/$EXTENSIONS_PATH/ /mnt/nfs/$LOGS_PATH/
+cp -r /data/$team/$app/documents/$app-$version/data/* /mnt/nfs/$DATA_PATH/
+cp -r /data/$team/$app/documents/$app-$version/conf/* /mnt/nfs/$CONF_PATH/
+cp -r /data/$team/$app/documents/$app-$version/extensions/* /mnt/nfs/$EXTENSIONS_PATH/
+cp -r /data/$team/$app/documents/$app-$version/logs/* /mnt/nfs/$LOGS_PATH/
 
 echo "Copying migration scripts and database dump to nfs ..."
 mkdir /mnt/nfs/$PG_PATH/migration-scripts
 mkdir /mnt/nfs/$PG_PATH/backups
-\cp -r /data/$team/$app/migration/db-migration/* /mnt/nfs/$PG_PATH/migration-scripts/
-\cp -r /data/$team/$app/documents/db_dump.sql /mnt/nfs/$PG_PATH/backups/
+cp -r /data/$team/$app/migration/db-migration/* /mnt/nfs/$PG_PATH/migration-scripts/
+cp -r /data/$team/$app/documents/db_dump.sql /mnt/nfs/$PG_PATH/backups/
 chmod +x /mnt/nfs/$PG_PATH/migration-scripts/script.sh
 
 echo "Running migration scripts to restore database ..."
