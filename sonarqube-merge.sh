@@ -43,7 +43,7 @@ if [[ -z $CONF_PATH || -z $DATA_PATH || -z $EXTENSIONS_PATH || -z $LOGS_PATH || 
   exit 1
 fi
 
-echo "Copying sonarqube files to nfs ..."
+echo "Copying SonarQube files to nfs ..."
 unzip /data/$team/$app/documents/$app-$version.zip -d /data/$team/$app/documents/
 rm -rf /mnt/nfs/$DATA_PATH/* /mnt/nfs/$CONF_PATH/* /mnt/nfs/$EXTENSIONS_PATH/* /mnt/nfs/$LOGS_PATH/*
 cp -r /data/$team/$app/documents/$app-$version/data/* /mnt/nfs/$DATA_PATH/
