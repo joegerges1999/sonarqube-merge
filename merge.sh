@@ -6,6 +6,7 @@ HOSTNAME=$4
 VERSION_NUMBER=$(echo "$VERSION" | rev | cut -d "-" -f2 | rev)
 CLUSTER_ID=$5 #c-jpxcn
 PROJECT_ID=$6 #p-zwxgj
+TOKEN=$7
 
 if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER || -z $CLUSTER_ID || -z $PROJECT_ID ]]; then
   echo 'One or more variables are undefined, exiting script ...'
@@ -13,7 +14,7 @@ if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER |
 fi
 
 echo "Logging in to rancher ..."
-rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $CLUSTER_ID:$PROJECT_ID
+rancher login https://rancher.cd.murex.com/ --token $TOKEN --context $CLUSTER_ID:$PROJECT_ID
 echo "Logged in to rancher successfully"
 
 echo "Creating new SonarQube instance"
