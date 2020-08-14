@@ -7,7 +7,7 @@ VERSION_NUMBER=$(echo "$VERSION" | rev | cut -d "-" -f2 | rev)
 CLUSTER_ID=$5 #c-jpxcn
 PROJECT_ID=$6 #p-zwxgj
 
-if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER ]]; then
+if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER || -z $CLUSTER_ID || -z $PROJECT_ID ]]; then
   echo 'One or more variables are undefined, exiting script ...'
   exit 1
 fi
