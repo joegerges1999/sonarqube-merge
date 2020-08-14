@@ -4,8 +4,8 @@ TEAM=$2
 VERSION=$3
 HOSTNAME=$4
 VERSION_NUMBER=$(echo "$VERSION" | rev | cut -d "-" -f2 | rev)
-CLUSTER_ID=c-jpxcn
-PROJECT_ID=p-zwxgj
+CLUSTER_ID=$5 #c-jpxcn
+PROJECT_ID=$6 #p-zwxgj
 
 if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER ]]; then
   echo 'One or more variables are undefined, exiting script ...'
@@ -14,11 +14,13 @@ fi
 
 echo "Logging in to rancher ..."
 rancher login https://rancher.cd.murex.com/ --token token-vkq9d:wg8gtt4gbgtk7nzfhlj4gs87dn4w2hxhd9qmcb9fmnqkllgx57792r --context $CLUSTER_ID:$PROJECT_ID
+echo "Logged in to rancher successfully"
 
 echo "Creating new SonarQube instance"
 rancher app install --values /data/$TEAM/$APP/migration/myvals.yaml --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  --version 0.1.0 --namespace $APP $APP $TEAM-$APP
 
 ansible-playbook /data/$TEAM/$APP/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
+echo "New SonarQube instance is up, starting the merge process ..."
 
 echo "Getting $APP PV names for team $TEAM..."
 CONF_PV=$(kubectl get --all-namespaces pvc -l app=$APP,team=$TEAM,type=conf -o jsonpath="{.items[0].spec.volumeName}")
@@ -43,6 +45,8 @@ if [[ -z $CONF_PATH || -z $DATA_PATH || -z $EXTENSIONS_PATH || -z $LOGS_PATH || 
   echo 'One or more nfs paths are unset, exiting script ...'
   exit 1
 fi
+
+echo "All paths were fetched successfully"
 
 echo "Copying SonarQube files to nfs ..."
 unzip /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER.zip -d /data/$TEAM/$APP/documents/
@@ -69,6 +73,7 @@ chmod +x /mnt/nfs/$PG_PATH/migration-scripts/script.sh
 
 echo "Running migration scripts to restore database ..."
 kubectl -n sonarqube exec $POD -c sonardb -- bash -c "cd /var/lib/postgresql/migration-scripts && ./script.sh"
+echo "Database migrated successfully"
 
 echo "Cleaning up volume from migration scripts ..."
 rm -rf /mnt/nfs/$PG_PATH/migration-scripts
@@ -80,5 +85,4 @@ rancher app upgrade --values /data/$TEAM/$APP/migration/myvals.yaml --set hostna
 
 echo "Rechecking readiness ..."
 ansible-playbook /data/$TEAM/$APP/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
-
 echo "SonarQube successfully merged, you can now access it on http://$HOSTNAME/sonar !"
