@@ -9,7 +9,7 @@ PROJECT_ID=$6 #p-zwxgj
 TOKEN=$7
 ROOTDIR=/data/$TEAM/$APP/migration
 DOCDIR=/data/$TEAM/$APP/documents
-NFSDIR=/mnt/nfs
+NFSDIR=/mnt/nfs/TEST
 
 if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER || -z $CLUSTER_ID || -z $PROJECT_ID ]]; then
   echo 'One or more variables are undefined, exiting script ...'
