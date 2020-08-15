@@ -7,6 +7,9 @@ VERSION_NUMBER=$(echo "$VERSION" | rev | cut -d "-" -f2 | rev)
 CLUSTER_ID=$5 #c-jpxcn
 PROJECT_ID=$6 #p-zwxgj
 TOKEN=$7
+ROOTDIR=/data/$TEAM/$APP/migration
+DOCDIR=/data/$TEAM/$APP/documents
+NFSDIR=/mnt/nfs
 
 if [[ -z $APP || -z $TEAM || -z $VERSION || -z $HOSTNAME || -z $VERSION_NUMBER || -z $CLUSTER_ID || -z $PROJECT_ID ]]; then
   echo 'One or more variables are undefined, exiting script ...'
@@ -18,9 +21,9 @@ rancher login https://rancher.cd.murex.com/ --token $TOKEN --context $CLUSTER_ID
 echo "Logged in to rancher successfully"
 
 echo "Creating new SonarQube instance"
-rancher app install --values /data/$TEAM/$APP/migration/myvals.yaml --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  --version 0.1.0 --namespace $APP $APP $TEAM-$APP
+rancher app install --values $ROOTDIR/myvals.yaml --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  --version 0.1.0 --namespace $APP $APP $TEAM-$APP
 
-ansible-playbook /data/$TEAM/$APP/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
+ansible-playbook $ROOTDIR/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
 echo "New SonarQube instance is up, starting the merge process ..."
 
 echo "Getting $APP PV names for team $TEAM..."
@@ -50,40 +53,40 @@ fi
 echo "All paths were fetched successfully"
 
 echo "Copying SonarQube files to nfs ..."
-unzip /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER.zip -d /data/$TEAM/$APP/documents/
-rm -rf /mnt/nfs/$DATA_PATH/* /mnt/nfs/$CONF_PATH/* /mnt/nfs/$EXTENSIONS_PATH/* /mnt/nfs/$LOGS_PATH/*
-cp -r /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER/data/* /mnt/nfs/$DATA_PATH/
-cp -r /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER/conf/* /mnt/nfs/$CONF_PATH/
-cp -r /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER/extensions/* /mnt/nfs/$EXTENSIONS_PATH/
-cp -r /data/$TEAM/$APP/documents/$APP-$VERSION_NUMBER/logs/* /mnt/nfs/$LOGS_PATH/
+unzip $DOCDIR/$APP-$VERSION_NUMBER.zip -d $DOCDIR
+rm -rf $NFSDIR/$DATA_PATH/* $NFSDIR/$CONF_PATH/* $NFSDIR/$EXTENSIONS_PATH/* $NFSDIR/$LOGS_PATH/*
+cp -r $DOCDIR/$APP-$VERSION_NUMBER/data/* $NFSDIR/$DATA_PATH/
+cp -r $DOCDIR/$APP-$VERSION_NUMBER/conf/* $NFSDIR/$CONF_PATH/
+cp -r $DOCDIR/$APP-$VERSION_NUMBER/extensions/* $NFSDIR/$EXTENSIONS_PATH/
+cp -r $DOCDIR/$APP-$VERSION_NUMBER/logs/* $NFSDIR/$LOGS_PATH/
 
 echo "Copying migration scripts and database dump to nfs ..."
-if [ ! -d "/mnt/nfs/$PG_PATH/migration-scripts" ]; then
+if [ ! -d "$NFSDIR/$PG_PATH/migration-scripts" ]; then
     echo "migration-scripts directory does not exist, creating directory ..."
-    mkdir /mnt/nfs/$PG_PATH/migration-scripts
+    mkdir $NFSDIR/$PG_PATH/migration-scripts
 fi
 
-if [ ! -d "/mnt/nfs/$PG_PATH/backups" ]; then
+if [ ! -d "$NFSDIR/$PG_PATH/backups" ]; then
     echo "backups directory does not exist, creating directory ..."
-    mkdir /mnt/nfs/$PG_PATH/backups
+    mkdir $NFSDIR/$PG_PATH/backups
 fi
 
-cp -r /data/$TEAM/$APP/migration/db-migration/* /mnt/nfs/$PG_PATH/migration-scripts/
-cp -r /data/$TEAM/$APP/documents/db_dump.sql /mnt/nfs/$PG_PATH/backups/
-chmod +x /mnt/nfs/$PG_PATH/migration-scripts/script.sh
+cp -r $ROOTDIR/db-migration/* $NFSDIR/$PG_PATH/migration-scripts/
+cp -r $DOCDIR/db_dump.sql $NFSDIR/$PG_PATH/backups/
+chmod +x $NFSDIR/$PG_PATH/migration-scripts/script.sh
 
 echo "Running migration scripts to restore database ..."
 kubectl -n sonarqube exec $POD -c sonardb -- bash -c "cd /var/lib/postgresql/migration-scripts && ./script.sh"
 echo "Database migrated successfully"
 
 echo "Cleaning up volume from migration scripts ..."
-rm -rf /mnt/nfs/$PG_PATH/migration-scripts
+rm -rf $NFSDIR/$PG_PATH/migration-scripts
 
 echo "Restarting the service ..."
-rancher app upgrade --values /data/$TEAM/$APP/migration/myvals.yaml --set replicaCount='0' --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  $TEAM-$APP 0.1.0
+rancher app upgrade --values $ROOTDIR/myvals.yaml --set replicaCount='0' --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  $TEAM-$APP 0.1.0
 sleep 7s
-rancher app upgrade --values /data/$TEAM/$APP/migration/myvals.yaml --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  $TEAM-$APP 0.1.0
+rancher app upgrade --values $ROOTDIR/myvals.yaml --set hostname="$HOSTNAME" --set team="$TEAM" --set sonarqube.image.tag="$VERSION"  $TEAM-$APP 0.1.0
 
 echo "Rechecking readiness ..."
-ansible-playbook /data/$TEAM/$APP/migration/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
+ansible-playbook $ROOTDIR/check-readiness.yaml --extra-vars "web_context=/sonar hostname=$HOSTNAME"
 echo "SonarQube successfully merged, you can now access it on http://$HOSTNAME/sonar !"
